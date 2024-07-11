@@ -4,13 +4,11 @@ MedScheduler is a web application designed to streamline the process of scheduli
 
 ## Features
 
-1. **Specialty Selection**: Users can browse and select from various medical specialties offered by Manipal Hospital.
+1. **Specialty Selection**: Users can browse and select from various medical specialties offered by Hospital.
 2. **Doctor Selection**: Once a specialty is chosen, users can view a list of available doctors and their profiles, including qualifications and availability.
 3. **Appointment Booking**: Users can book an appointment with their chosen doctor at a convenient time.
 4. **Automated Appointment Catalog**: Each appointment is automatically recorded in an appointment catalog table, ensuring accurate and up-to-date records.
-5. **User Authentication**: Secure login and registration for users to manage their appointments and personal information.
-6. **Notifications**: Automated email or SMS notifications to remind users of their upcoming appointments.
-7. **Admin Dashboard**: An administrative interface for hospital staff to manage doctors, specialties, and appointments.
+5. **Admin Dashboard**: An administrative interface for hospital staff to manage doctors, specialties, and appointments.
 
 ## Images
 
