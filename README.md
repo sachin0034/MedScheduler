@@ -15,16 +15,16 @@ ManipalScheduler is a web application designed to streamline the process of sche
 ## Images
 
 ### Single Call
-![Single Call](Images\SingleCall.png)
+![Single Call](SingleCall.png)
 
 ### Appointments
-![Appointments](Images\Appointment.png)
+![Appointments](Appointment.png)
 
 ### Call Logs
-![Call Logs](Images\calllogs.png)
+![Call Logs](calllogs.png)
 
 ### Transcript
-![Transcript](Images\Transcript.png)
+![Transcript](Transcript.png)
 
 ## Contact
 

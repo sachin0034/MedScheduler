@@ -335,7 +335,7 @@ def parse_and_format_date(date_str):
         return date_str
 
 # Streamlit App
-st.sidebar.image('Images\ManipalLogo.png')  # Add the path to your logo image
+st.sidebar.image('ManipalLogo.png')  # Add the path to your logo image
 st.sidebar.title("Manipal Hospital Dashboard")
 
 # Sidebar options
