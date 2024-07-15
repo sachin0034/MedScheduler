@@ -304,8 +304,8 @@ st.title("Manipal Hospital Appointment Scheduler")
 menu = ["Home", "Make a Call", "Book Appointment", "Handle Conversation"]
 choice = st.sidebar.selectbox("Menu", menu)
 
-if choice == "Home":
-    st.subheader("Home")
+# if choice == "Home":
+#     st.subheader("Home")
 
 elif choice == "Make a Call":
     st.subheader("Make a Call")
