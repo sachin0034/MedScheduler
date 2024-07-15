@@ -111,10 +111,10 @@ def make_call(phone_number):
             return 'Call created successfully', response.json()
         else:
             st.error('Failed to create call')
-            return 'Failed to create call', response.text
+            return 'Failed to create call', None
     except Exception as e:
         st.error(f"Error during making call: {str(e)}")
-        return 'Error during making call', str(e)
+        return 'Error during making call', None
 
 def book_appointment(specialty, doctor_name, appointment_type, time_slot, user_name, mobile_number):
     try:
@@ -223,118 +223,172 @@ def suggest_slots(specialty, doctor_name):
             booked_slots = doctor.get("booked_slots", [])
             formatted_available_slots = [format_datetime(datetime.strptime(slot, "%d %B at %I %p")) for slot in available_slots]
             formatted_booked_slots = [format_datetime(datetime.strptime(slot, "%d %B at %I %p")) for slot in booked_slots]
-            st.success(f"Available slots for {doctor_name}: {formatted_available_slots}")
             return formatted_available_slots, formatted_booked_slots
 
     st.error("Doctor not found")
     return None, "Doctor not found."
 
-def fetch_transcript(call_id):
-    try:
-        headers = {
-            'Authorization': f'Bearer {auth_token}',
-            'Content-Type': 'application/json',
-        }
+def fetch_appointments():
+    appointments = user_appointments.find()
+    appointments_list = list(appointments)
+    for appointment in appointments_list:
+        appointment["_id"] = str(appointment["_id"])
+    return pd.DataFrame(appointments_list)
 
-        response = requests.get(f'https://api.vapi.ai/call/{call_id}', headers=headers)
-        if response.status_code == 200:
-            return response.json().get("transcript", "")
-        else:
-            st.error('Failed to fetch transcript')
-            return None
-    except Exception as e:
-        st.error(f"Error during fetching transcript: {str(e)}")
-        return None
+def fetch_call_logs():
+    url = "https://api.vapi.ai/call"
+    headers = {
+        'Authorization': f'Bearer {auth_token}'
+    }
+
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        logs = response.json()
+        st.success("Call logs fetched successfully")
+        return logs
+    else:
+        st.error("Failed to fetch call logs")
+        return []
+
+def fetch_transcript(call_id):
+    url = f"https://api.vapi.ai/call/{call_id}"
+    headers = {
+        'Authorization': f'Bearer {auth_token}'
+    }
+
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code == 200:
+        call_details = response.json()
+        transcript = call_details.get('transcript', 'No transcript available')
+        st.success("Transcript fetched successfully")
+        return transcript
+    else:
+        st.error("Failed to fetch transcript")
+        return "Failed to fetch transcript"
 
 def extract_and_save_appointment_details(transcript):
+    prompt = f"""
+    Extract the following details from the transcript:
+    - phone_number
+    - user_name
+    - specialty
+    - doctor_name
+    - appointment_type
+    - appointment_date
+    
+    Format the response as key: value pairs, one per line.
+    
+    Transcript:
+    {transcript}
+    """
+    
+    response = openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": prompt}
+        ],
+        temperature=1,
+        max_tokens=256,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+
+    details = response.choices[0].message.content
+
+    details_dict = {}
+    for line in details.split('\n'):
+        if ':' in line:
+            key, value = line.split(':', 1)
+            details_dict[key.strip()] = value.strip()
+
+    appointment_date_str = details_dict.get("appointment_date")
+    formatted_date = parse_and_format_date(appointment_date_str) if appointment_date_str else None
+
+    collect_user_info_and_save(
+        details_dict.get("phone_number"),
+        details_dict.get("user_name"),
+        details_dict.get("specialty"),
+        details_dict.get("doctor_name"),
+        details_dict.get("appointment_type"),
+        formatted_date
+    )
+
+def parse_and_format_date(date_str):
     try:
-        if not transcript:
-            st.error("Transcript is empty")
-            return False, "Transcript is empty."
+        date_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str)
+        
+        # Handle relative dates
+        if "tomorrow" in date_str.lower():
+            appointment_date = datetime.now() + timedelta(days=1)
+        elif "day after tomorrow" in date_str.lower():
+            appointment_date = datetime.now() + timedelta(days=2)
+        else:
+            appointment_date = datetime.strptime(date_str, "%d %B at %I %p")
+        
+        formatted_date = appointment_date.strftime("%d %B at %I %p")
+        return formatted_date
+    except ValueError:
+        st.error(f"Failed to parse date: {date_str}")
+        return date_str
 
-        pattern = re.compile(r"\b(?:appointment|book)\b", re.IGNORECASE)
-        if not pattern.search(transcript):
-            st.error("No appointment details found in the transcript.")
-            return False, "No appointment details found in the transcript."
+# Streamlit App
+st.sidebar.image('ManipalLogo.png')  # Add the path to your logo image
+st.sidebar.title("Manipal Hospital Dashboard")
 
-        appointment_details = {
-            "Name": "John Doe",
-            "Specialty": "Cardiology",
-            "Doctor Name": "Dr. Smith",
-            "Appointment Type": "In-person",
-            "Time Slot": datetime.strptime("25 July at 10 AM", "%d %B at %I %p")
-        }
+# Sidebar options
+option = st.sidebar.selectbox(
+    "Select a page",
+    ("Single Call", "Appointments", "Call Logs", "Transcript")
+)
 
-        save_appointment_to_excel(appointment_details)
-        st.success("Appointment details extracted and saved successfully.")
-        return True, "Appointment details extracted and saved successfully."
-    except Exception as e:
-        st.error(f"Error during extracting and saving appointment details: {str(e)}")
-        return False, str(e)
-
-def parse_relative_date(relative_date):
-    now = datetime.now()
-    match = re.match(r"(\d+)\s+(minute|hour|day|week|month|year)s?\s+(ago|from now)", relative_date)
-    if not match:
-        raise ValueError("Invalid relative date format")
-
-    amount, unit, direction = match.groups()
-    amount = int(amount)
-    if direction == "ago":
-        amount = -amount
-
-    if unit == "minute":
-        delta = timedelta(minutes=amount)
-    elif unit == "hour":
-        delta = timedelta(hours=amount)
-    elif unit == "day":
-        delta = timedelta(days=amount)
-    elif unit == "week":
-        delta = timedelta(weeks=amount)
-    elif unit == "month":
-        delta = timedelta(days=30 * amount)
-    elif unit == "year":
-        delta = timedelta(days=365 * amount)
-
-    return now + delta
-
-# UI code
-st.title("Manipal Hospital Appointment Scheduler")
-
-menu = ["Home", "Make a Call", "Book Appointment", "Handle Conversation"]
-choice = st.sidebar.selectbox("Menu", menu)
-
-# if choice == "Home":
-#     st.subheader("Home")
-
-elif choice == "Make a Call":
-    st.subheader("Make a Call")
-    phone_number = st.text_input("Enter phone number")
-    if st.button("Make Call"):
+if option == "Single Call":
+    st.title('Single Call')
+    phone_number = st.text_input('Enter phone number (with country code)')
+    
+    if st.button('Make Call'):
+        st.write(f"Initiating call to {phone_number}")
         message, response = make_call(phone_number)
-        if isinstance(response, dict):
+        st.write(message)
+        
+        if isinstance(response, dict) and 'id' in response:
             st.session_state['last_call_id'] = response['id']
         else:
-            st.error("Failed to retrieve call ID from response")
+            st.error("Unexpected response format")
 
-elif choice == "Book Appointment":
-    st.subheader("Book Appointment")
-    user_name = st.text_input("Full Name")
-    mobile_number = st.text_input("Mobile Number")
-    specialty = st.text_input("Specialty")
-    doctor_name = st.text_input("Doctor Name")
-    appointment_type = st.selectbox("Appointment Type", ["In-person", "Teleconsultation"])
-    time_slot = st.text_input("Preferred Date and Time")
-
-    if st.button("Book Appointment"):
-        success, message = book_appointment(specialty, doctor_name, appointment_type, time_slot, user_name, mobile_number)
-        if success:
-            st.success(message)
+    if st.button('Check Call Status and Process Bookings'):
+        if 'last_call_id' in st.session_state:
+            handle_conversation(st.session_state['last_call_id'])
         else:
-            st.error(message)
+            st.warning("No active call to process.")
 
-elif choice == "Handle Conversation":
-    st.subheader("Handle Conversation")
-    call_id = st.text_input("Enter Call ID")
-    if st.button("Handle Call"):
-        handle_conversation(call_id)
+elif option == "Appointments":
+    st.title('Appointments')
+    st.write("Fetching appointments from the database...")
+    df = fetch_appointments()
+    st.dataframe(df)
+
+elif option == "Call Logs":
+    st.title('Call Logs')
+    st.write("Fetching call logs from the API...")
+    logs_df = fetch_call_logs()
+    logs_df = pd.DataFrame(logs_df)
+    st.dataframe(logs_df)
+    
+elif option == "Transcript":
+    st.title('Transcript')
+    st.write("Fetching transcript of the most recent call...")
+
+    call_logs = fetch_call_logs()
+    if call_logs:
+        most_recent_call_id = call_logs[0]['id']
+        transcript = fetch_transcript(most_recent_call_id)
+        st.text_area("Transcript", transcript, height=400)
+        
+        st.write("Extracting details from transcript using OpenAI...")
+        extract_and_save_appointment_details(transcript)
+        st.write("Details extracted and saved.")
+    else:
+        st.warning("No call logs available.")
