@@ -14,7 +14,7 @@ load_dotenv()
 # Your Vapi API Authorization token
 auth_token = os.getenv('AUTH_TOKEN')
 phone_number_id = os.getenv('PHONE_NUMBER_ID')
-mongo_uri = os.getenv('MONGODB_URI')
+mongo_uri = "mongodb+srv://sachinparmar0246:2nGATJVDEwDZzaA8@cluster0.c25rmsz.mongodb.net"
 openai_api_key = os.getenv('OPENAI_API_KEY')
 
 # Connect to MongoDB
